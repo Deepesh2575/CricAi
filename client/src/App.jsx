@@ -89,8 +89,9 @@ export default function App() {
   const [feedHistory, setFeedHistory] = useState([]);
   const [feedCount, setFeedCount] = useState(0);
   const [commentaryText, setCommentaryText] = useState(
-    "Namaste cricket fans! CricAI MERN stack live hai — pehli ball bowl karo! 🏏✨"
+    "Namaste dosto! CricAI live commentary box active hai. Tune in to any real-world match or simulate balls to begin!"
   );
+  const [isAudioUnblocked, setIsAudioUnblocked] = useState(false);
   const [commentaryHighlight, setCommentaryHighlight] = useState("");
   const [crowdMeter, setCrowdMeter] = useState({
     fill: 60,
@@ -1009,7 +1010,59 @@ export default function App() {
               </span>
             </div>
             <div className="commentary-screen-outer">
-              <div className="commentary-screen">
+              <div className="commentary-screen" style={{ position: "relative" }}>
+                {!isAudioUnblocked ? (
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    background: "rgba(10, 15, 30, 0.95)",
+                    backdropFilter: "blur(4px)",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 20,
+                    borderRadius: "12px",
+                    gap: "12px",
+                    padding: "20px",
+                    textAlign: "center"
+                  }}>
+                    <i className="fas fa-volume-up text-blue" style={{ fontSize: "2.4rem", color: "var(--neon-blue)", filter: "drop-shadow(0 0 8px var(--neon-blue))" }}></i>
+                    <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "#ffffff", fontFamily: "var(--font-primary)" }}>STADIUM AUDIO INACTIVE</h3>
+                    <p style={{ fontSize: "0.8rem", color: "#94a3b8", margin: 0, lineHeight: 1.4, fontFamily: "var(--font-primary)" }}>Click below to unmute the broadcaster microphone and hear live stadium commentary!</p>
+                    <button 
+                      className="control-btn"
+                      style={{
+                        padding: "10px 22px",
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, var(--neon-blue), #4f46e5)",
+                        border: "none",
+                        boxShadow: "0 0 15px rgba(0, 229, 255, 0.4)",
+                        borderRadius: "30px",
+                        cursor: "pointer",
+                        color: "#ffffff"
+                      }}
+                      onClick={() => {
+                        // Play a bat hit sound to unblock Web Audio Context
+                        playSynthSound("bat", true);
+                        
+                        // Play a tiny silent WAV file to unblock standard HTML5 <audio> tag elements on the browser
+                        try {
+                          const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+                          dummy.play().catch(() => {});
+                        } catch (e) {}
+                        
+                        setIsAudioUnblocked(true);
+                      }}
+                    >
+                      🎙️ Activate Commentary Audio
+                    </button>
+                  </div>
+                ) : null}
                 <p className={commentaryHighlight || "placeholder-text"}>
                   {commentaryText}
                 </p>
