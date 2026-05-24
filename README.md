@@ -38,15 +38,6 @@
 - **Conversation memory** per match — multi-turn chat history
 - **Legacy NLP fallback** — keyword-intent matching when no Gemini API key is set
 
-### 🏟️ Match Simulation & Scoring
-- **Ball-by-ball simulation** — DOT, RUNS, FOUR, SIX, WICKET, EXTRA outcomes
-- **Batting shot types** — cover drive, sweep, pull, straight drive, scoop, helicopter
-- **Win probability engine** — scenario-aware calculation (death overs, powerplay, middle overs)
-- **Wagon wheel** shot map with real ball placement
-- **Crowd meter** — dynamic crowd noise indicator based on outcome
-- **2D pitch field animation** — ball trajectory, bat hit spark, bowler/striker animations
-- **4 pre-loaded scenarios** — Death Overs, Powerplay, Middle Overs, Last Ball Climax
-
 ### 🗄️ MERN Persistence
 - **MongoDB** for all match state, ball feed history, wagon wheel shots
 - **In-memory fallback** — zero-config demo mode if MongoDB is unavailable
