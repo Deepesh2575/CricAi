@@ -65,6 +65,8 @@ export default function App() {
   const [matchId, setMatchId] = useState(null);
   const [match, setMatch] = useState(null);
   const [probabilities, setProbabilities] = useState({ batting: 50, bowling: 50 });
+  const [wagonWheel, setWagonWheel] = useState([]);
+  const [playMode, setPlayMode] = useState("free");
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window === "undefined") return "arena";
     return window.location.hash.slice(1) || "arena";
@@ -117,8 +119,15 @@ export default function App() {
   const [dbMode, setDbMode] = useState("mongodb");
   const [apiError, setApiError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isLiveBroadcasting, setIsLiveBroadcasting] = useState(true);
 
   const livePollTimer = useRef(null);
+  const demoTimelineRef = useRef([]);
+  const liveDemoIndex = useRef(0);
+  const lastScoreString = useRef("");
+  const lastRuns = useRef(null);
+  const lastWickets = useRef(null);
+  const lastOvers = useRef(null);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -578,8 +587,9 @@ export default function App() {
     }
   };
 
-  const pollLiveMatchesData = async () => {
-    if (selectedLiveMatch === "demo") {
+  const pollLiveMatchesData = async (overrideMatchId) => {
+    const matchGuid = overrideMatchId !== undefined ? overrideMatchId : selectedLiveMatch;
+    if (matchGuid === "demo") {
       const timeline = demoTimelineRef.current;
       if (liveDemoIndex.current >= timeline.length) {
         setLiveConnectionStatus(
@@ -601,29 +611,17 @@ export default function App() {
     }
 
     try {
-      const proxy =
-        "https://corsproxy.io/?url=https://www.espncricinfo.com/rss/livescores.xml";
-      const response = await fetch(proxy);
-      if (!response.ok) return;
-      const xmlText = await response.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-      const items = xmlDoc.querySelectorAll("item");
-
-      let foundTitle = null;
-      items.forEach((item) => {
-        const guid = item.querySelector("guid")
-          ? item.querySelector("guid").textContent
-          : "";
-        if (guid === selectedLiveMatch) {
-          foundTitle = item.querySelector("title").textContent;
-        }
-      });
-
-      if (!foundTitle) {
+      // Hit our own highly stable Express REST snapshot of matches instead of direct corsproxy XML
+      const res = await api.liveMatches();
+      const list = res.matches || [];
+      
+      const foundMatch = list.find((m) => m.guid === matchGuid);
+      if (!foundMatch) {
         setLiveConnectionStatus("Selected match went offline or completed.");
         return;
       }
+
+      const foundTitle = foundMatch.title;
 
       if (foundTitle === lastScoreString.current) {
         setLiveConnectionStatus(
@@ -645,6 +643,10 @@ export default function App() {
         lastWickets.current = parsed.wickets;
         lastOvers.current = parsed.overs;
         triggerToast(`Connected live tracking to ${parsed.team}!`);
+        
+        // Exciting live commentary intro welcome statement
+        const welcomeDesc = `CricAI tuned in live to ${parsed.team}! Currently at ${parsed.runs} runs for ${parsed.wickets} wickets in ${parsed.overs} overs. Broadcast microphone is active!`;
+        executeLivePolledBall("DOT", parsed.runs, parsed.wickets, parsed.overs, welcomeDesc);
         return;
       }
 
@@ -672,11 +674,11 @@ export default function App() {
         `Real match update for ${parsed.team}`
       );
     } catch (e) {
-      console.error("XML poll error:", e);
+      console.error("Live match poll error:", e);
     }
   };
 
-  const startLiveMatchPolling = () => {
+  const startLiveMatchPolling = (overrideMatchId) => {
     stopLiveMatchPolling();
     lastScoreString.current = "";
     lastRuns.current = null;
@@ -686,7 +688,24 @@ export default function App() {
     setLiveConnectionStatus(
       "Live Broadcaster link active. Listening for match events..."
     );
-    livePollTimer.current = setInterval(pollLiveMatchesData, 9000);
+    // Instant execution on selection!
+    pollLiveMatchesData(overrideMatchId);
+    livePollTimer.current = setInterval(() => {
+      pollLiveMatchesData();
+    }, 9000);
+  };
+
+  const toggleLiveBroadcasting = () => {
+    if (isLiveBroadcasting) {
+      stopLiveMatchPolling();
+      setIsLiveBroadcasting(false);
+      setLiveConnectionStatus("Live Broadcaster paused. Click resume to connect.");
+      triggerToast("Live Commentary Broadcaster paused!");
+    } else {
+      setIsLiveBroadcasting(true);
+      startLiveMatchPolling();
+      triggerToast("Live Commentary Broadcaster resumed!");
+    }
   };
 
   const triggerFetchLiveMatches = async () => {
@@ -784,6 +803,16 @@ export default function App() {
         const full = await api.getMatch(id);
         logMernRequest("GET", `/api/matches/${id}`, "{}", full);
         syncFromMatch(full.match, full.probabilities);
+        // Load demo matches timeline
+        try {
+          const demoRes = await api.demoTimeline();
+          demoTimelineRef.current = demoRes.timeline || [];
+        } catch {
+          demoTimelineRef.current = [];
+        }
+        // Fetch matches and start live polling automatically
+        triggerFetchLiveMatches();
+        startLiveMatchPolling();
       } catch (err) {
         setApiError(err.message);
         triggerToast(`MERN API error: ${err.message}`);
@@ -882,6 +911,71 @@ export default function App() {
 
       <main className="arena-grid">
         <section className="left-panel">
+          {/* 📡 CRICINFO LIVE BROADCASTER DESK */}
+          <div className="card live-match-controls-card" style={{ borderColor: "rgba(0, 210, 255, 0.25)" }}>
+            <div className="card-header">
+              <h2>
+                <i className="fas fa-satellite-dish text-blue" style={{ color: "var(--neon-blue)", marginRight: "8px" }}></i>
+                CRICINFO LIVE BROADCASTER DESK
+              </h2>
+              <button
+                className={`control-btn ${isLiveBroadcasting ? "active" : ""}`}
+                onClick={toggleLiveBroadcasting}
+                style={{ fontSize: "0.8rem", padding: "6px 12px" }}
+              >
+                <i className={isLiveBroadcasting ? "fas fa-pause" : "fas fa-play"}></i>
+                <span>{isLiveBroadcasting ? "Pause Broadcast" : "Resume Broadcast"}</span>
+              </button>
+            </div>
+            <div className="live-match-setup" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div className="batting-instruction" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <span>Tune in to Real-World Matches for Live Commentary:</span>
+                <span className="live-pulse-green" style={{ background: isLiveBroadcasting ? "var(--neon-green)" : "#64748b", boxShadow: isLiveBroadcasting ? "0 0 10px var(--neon-green)" : "none" }}></span>
+              </div>
+              <div className="live-select-row" style={{ display: "flex", gap: "10px", width: "100%" }}>
+                <select
+                  value={selectedLiveMatch}
+                  onChange={handleSelectMatchChange}
+                  style={{
+                    background: "rgba(0, 0, 0, 0.45)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    borderRadius: "10px",
+                    color: "#ffffff",
+                    padding: "10px 14px",
+                    fontFamily: "var(--font-primary)",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    outline: "none",
+                    flex: 1,
+                  }}
+                >
+                  <option value="demo">
+                    Simulated Broadcast: RCB vs CSK (IPL Live Derby)
+                  </option>
+                  {liveMatches.map((m) => (
+                    <option key={m.guid} value={m.guid}>
+                      {m.title}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="control-btn"
+                  title="Force Reload Matches List"
+                  onClick={triggerFetchLiveMatches}
+                  style={{ padding: "10px 14px" }}
+                >
+                  <i className="fas fa-sync-alt"></i>
+                </button>
+              </div>
+              <div className="live-status-row" style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(0,0,0,0.2)", padding: "10px 14px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.04)" }}>
+                <span className="live-pulse-green" style={{ background: isLiveBroadcasting ? "var(--neon-green)" : "#64748b", boxShadow: isLiveBroadcasting ? "0 0 8px var(--neon-green)" : "none" }}></span>
+                <span className="status-msg" style={{ fontSize: "0.82rem", fontWeight: 600, color: "#cbd5e1" }}>
+                  {liveConnectionStatus}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* 1. CRICAI COMMENTARY BOX */}
           <div className="card commentary-card">
             <div className="card-header">

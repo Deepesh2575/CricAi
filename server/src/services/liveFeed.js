@@ -23,8 +23,7 @@ export function parseESPNLiveTitle(title) {
 
 export async function fetchLiveMatches() {
   const url = "https://www.espncricinfo.com/rss/livescores.xml";
-  const proxy = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxy);
+  const response = await fetch(url);
   if (!response.ok) throw new Error("Failed to fetch live scores");
 
   const xmlText = await response.text();

@@ -44,12 +44,13 @@ router.get("/matches", async (_req, res) => {
   const apiKey = process.env.CRICAPI_KEY;
 
   if (!apiKey) {
-    return res.json({
-      ok: false,
-      matches: [],
-      needsKey: true,
-      message: "Add CRICAPI_KEY to server/.env — get a free key at cricketdata.org",
-    });
+    // Automatically fall back to ESPN Cricinfo RSS matches list!
+    try {
+      const matches = await fetchLiveMatches();
+      return res.json({ ok: true, matches, source: "espn-rss", count: matches.length });
+    } catch (err) {
+      return res.json({ ok: false, matches: [], error: "No CRICAPI_KEY set and ESPN RSS load failed: " + err.message });
+    }
   }
 
   try {
@@ -61,8 +62,8 @@ router.get("/matches", async (_req, res) => {
     try {
       const matches = await fetchLiveMatches();
       res.json({ ok: true, matches, source: "espn-rss", count: matches.length });
-    } catch {
-      res.json({ ok: false, matches: [], error: err.message });
+    } catch (err2) {
+      res.json({ ok: false, matches: [], error: err.message + " | ESPN RSS error: " + err2.message });
     }
   }
 });
