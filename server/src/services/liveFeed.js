@@ -50,9 +50,35 @@ export async function fetchLiveMatches() {
       const team1 = m.teams?.[0]?.team?.name || "Team A";
       const team2 = m.teams?.[1]?.team?.name || "Team B";
       const status = m.statusText || "";
-      const scoreText = m.teams?.[0]?.score || m.teams?.[1]?.score || "";
       
-      const title = `${team1} vs ${team2} ${scoreText ? `(${scoreText})` : ""} — ${status}`;
+      const battingTeam = m.teams?.find(t => t.isLive) || m.teams?.[0];
+      const battingTeamName = battingTeam?.team?.name || team1;
+      
+      let runs = 0;
+      let wickets = 0;
+      const scoreStr = battingTeam?.score || "";
+      const scoreMatch = scoreStr.match(/(\d+)\/(\d+)/);
+      if (scoreMatch) {
+        runs = parseInt(scoreMatch[1], 10);
+        wickets = parseInt(scoreMatch[2], 10);
+      } else {
+        const runsOnlyMatch = scoreStr.match(/^(\d+)$/);
+        if (runsOnlyMatch) {
+          runs = parseInt(runsOnlyMatch[1], 10);
+          wickets = 10;
+        }
+      }
+      
+      const overs = m.liveOvers || (battingTeam?.scoreInfo ? parseFloat(battingTeam.scoreInfo) : 0);
+      
+      // If we have runs and wickets, format in the classic parseable RSS format!
+      let title = "";
+      if (runs > 0 || wickets > 0) {
+        title = `${battingTeamName} ${runs}/${wickets} (${overs} ov)`;
+      } else {
+        title = `${team1} vs ${team2} — ${status || "Match yet to begin"}`;
+      }
+      
       const guid = `http://www.cricinfo.com/ci/engine/match/${m.objectId}.html`;
       
       return { title, guid };
