@@ -237,7 +237,24 @@ export async function fetchRealCricinfoCommentary(matchGuid) {
       const htmlText = textItems.map(item => item.html || item.text || "").join(" ");
       
       // Clean HTML tags from commentary text
-      const cleanText = htmlText.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      let cleanText = htmlText.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      
+      // Fallback if there is no text commentary but we have basic ball details
+      if (!cleanText && title) {
+        let eventDesc = "";
+        if (latest.isWicket) {
+          eventDesc = `OUT! ${latest.dismissalText || "Wicket falls."}`;
+        } else if (latest.isSix) {
+          eventDesc = "SIX runs! Massive hit, goes all the way over the ropes!";
+        } else if (latest.isFour) {
+          eventDesc = "FOUR runs! Struck beautifully through the gap to the boundary.";
+        } else if (latest.totalRuns > 0) {
+          eventDesc = `${latest.totalRuns} run${latest.totalRuns > 1 ? "s" : ""} taken.`;
+        } else {
+          eventDesc = "No run, dot ball.";
+        }
+        cleanText = `${title}, ${eventDesc}`;
+      }
       
       if (cleanText) {
         console.log(`[Cricinfo Fetch] Successfully fetched live ball commentary: "${cleanText}"`);

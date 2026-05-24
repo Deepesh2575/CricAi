@@ -130,6 +130,17 @@ export default function App() {
   const lastWickets = useRef(null);
   const lastOvers = useRef(null);
   const currentPolledMatchGuid = useRef(null);
+  const matchIdRef = useRef(null);
+  const voiceLanguageRef = useRef(voiceLanguage);
+
+  useEffect(() => {
+    matchIdRef.current = matchId;
+  }, [matchId]);
+
+  useEffect(() => {
+    voiceLanguageRef.current = voiceLanguage;
+  }, [voiceLanguage]);
+
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -565,21 +576,22 @@ export default function App() {
   };
 
   const executeLivePolledBall = async (outcome, curRuns, curWickets, curOvers, desc, activeGuid) => {
-    if (!matchId) return;
+    const currentMatchId = matchIdRef.current;
+    if (!currentMatchId) return;
     try {
-      const res = await api.liveBall(matchId, {
+      const res = await api.liveBall(currentMatchId, {
         outcome,
         score: curRuns,
         wickets: curWickets,
         overs: curOvers,
         desc,
-        languageId: voiceLanguage,
+        languageId: voiceLanguageRef.current,
         matchGuid: activeGuid,
       });
       logMernRequest(
         "POST",
-        `/api/matches/${matchId}/live-ball`,
-        { outcome, score: curRuns, wickets: curWickets, overs: curOvers, desc, languageId: voiceLanguage, matchGuid: activeGuid },
+        `/api/matches/${currentMatchId}/live-ball`,
+        { outcome, score: curRuns, wickets: curWickets, overs: curOvers, desc, languageId: voiceLanguageRef.current, matchGuid: activeGuid },
         res
       );
 
@@ -593,8 +605,8 @@ export default function App() {
   };
 
   const pollLiveMatchesData = async (overrideMatchId) => {
-    const matchGuid = overrideMatchId !== undefined ? overrideMatchId : selectedLiveMatch;
-    if (matchGuid === "demo") {
+    const matchGuid = overrideMatchId !== undefined ? overrideMatchId : currentPolledMatchGuid.current;
+    if (!matchGuid || matchGuid === "demo") {
       const timeline = demoTimelineRef.current;
       if (liveDemoIndex.current >= timeline.length) {
         setLiveConnectionStatus(
@@ -704,7 +716,7 @@ export default function App() {
       "Live Broadcaster link active. Listening for match events..."
     );
     // Instant execution on selection!
-    pollLiveMatchesData(overrideMatchId);
+    pollLiveMatchesData(matchGuid);
     livePollTimer.current = setInterval(() => {
       pollLiveMatchesData();
     }, 9000);
