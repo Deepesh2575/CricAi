@@ -113,33 +113,55 @@ export async function speakCommentary({
   onStart,
   onEnd,
 }) {
-  if (!ttsEnabled || !text?.trim()) return;
+  if (!ttsEnabled || !text?.trim()) {
+    onEnd?.();
+    return;
+  }
 
   const spokenText = cleanCommentaryForSpeech(text);
-  if (!spokenText) return;
+  if (!spokenText) {
+    console.warn("No text to speak after cleaning");
+    onEnd?.();
+    return;
+  }
 
   stopAllSpeech();
 
   if (useAiVoice) {
     try {
+      console.log(`Attempting AI voice synthesis for language: ${languageId}`);
       await speakWithAiVoice(spokenText, {
         languageId,
         outcome,
-        onStart: () => onStart?.(),
-        onEnd: () => onEnd?.(),
+        onStart: () => {
+          console.log("AI voice playback started");
+          onStart?.();
+        },
+        onEnd: () => {
+          console.log("AI voice playback ended");
+          onEnd?.();
+        },
       });
       return;
     } catch (err) {
-      console.warn("AI voice fallback to browser:", err.message);
+      console.warn(`AI voice failed (${err.message}), falling back to browser speech...`);
+      // Continue to browser fallback
     }
   }
 
+  console.log(`Using browser Speech API for language: ${languageId}`);
   speakWithBrowser(spokenText, {
     languageId,
     speechRate,
     outcome,
-    onStart: () => onStart?.(),
-    onEnd: () => onEnd?.(),
+    onStart: () => {
+      console.log("Browser voice playback started");
+      onStart?.();
+    },
+    onEnd: () => {
+      console.log("Browser voice playback ended");
+      onEnd?.();
+    },
   });
 }
 
@@ -148,7 +170,25 @@ export function stopCommentarySpeech() {
 }
 
 export function preloadBrowserVoices() {
-  if (!speechSynth) return;
-  speechSynth.getVoices();
-  speechSynth.onvoiceschanged = () => speechSynth.getVoices();
+  if (!speechSynth) {
+    console.warn("Speech Synthesis not available");
+    return;
+  }
+
+  try {
+    const voices = speechSynth.getVoices();
+    console.log(`Browser voices loaded: ${voices.length} voices available`);
+    voices.slice(0, 5).forEach((v) => {
+      console.log(`  - ${v.name} (${v.lang})`);
+    });
+
+    if (speechSynth.onvoiceschanged !== null) {
+      speechSynth.onvoiceschanged = () => {
+        const updatedVoices = speechSynth.getVoices();
+        console.log(`Browser voices updated: ${updatedVoices.length} voices available`);
+      };
+    }
+  } catch (err) {
+    console.error("Error preloading browser voices:", err);
+  }
 }

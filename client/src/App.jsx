@@ -74,7 +74,6 @@ export default function App() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const [playMode, setPlayMode] = useState("free");
   const [commentaryStyle, setCommentaryStyle] = useState("filmy");
   const [speechRate, setSpeechRate] = useState(1.0);
   const [voiceLanguage, setVoiceLanguage] = useState(
@@ -109,13 +108,10 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([
     {
       sender: "agent",
-      text: "Namaste! Main hoon CricAI MERN Copilot. Type kijiye six, wicket, dhol, or players like Dhoni — Express API se pitch control!",
+      text: "Namaste! Main hoon CricAI MERN Copilot. Live commentary streaming...",
     },
   ]);
   const [isAgentTyping, setIsAgentTyping] = useState(false);
-
-  const [wagonWheel, setWagonWheel] = useState([]);
-  const [showWagonWheel, setShowWagonWheel] = useState(true);
 
   const [mernLogs, setMernLogs] = useState([]);
   const [dbMode, setDbMode] = useState("mongodb");
@@ -123,12 +119,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const livePollTimer = useRef(null);
-  const liveDemoIndex = useRef(0);
-  const demoTimelineRef = useRef([]);
-  const lastScoreString = useRef("");
-  const lastRuns = useRef(null);
-  const lastWickets = useRef(null);
-  const lastOvers = useRef(null);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -861,35 +851,19 @@ export default function App() {
             <span>SFX: {sfxEnabled ? "ON" : "OFF"}</span>
           </button>
           <button
+            className="control-btn"
+            onClick={handleResetAll}
+            title="Reset match scoreboard via REST API"
+          >
+            <i className="fas fa-sync"></i>
+            <span>Reset scoreboard</span>
+          </button>
+          <button
             className="control-btn highlight-gold"
             onClick={() => setShowJudgeModal(true)}
           >
             <i className="fas fa-award"></i>
             <span>Judge&apos;s Spec</span>
-          </button>
-        </div>
-
-        <div className="page-tabs">
-          <button
-            type="button"
-            className={`page-tab-btn ${currentPage === "arena" ? "active" : ""}`}
-            onClick={() => navigateTo("arena")}
-          >
-            Arena
-          </button>
-          <button
-            type="button"
-            className={`page-tab-btn ${currentPage === "commentary" ? "active" : ""}`}
-            onClick={() => navigateTo("commentary")}
-          >
-            Commentary
-          </button>
-          <button
-            type="button"
-            className={`page-tab-btn ${currentPage === "insights" ? "active" : ""}`}
-            onClick={() => navigateTo("insights")}
-          >
-            Insights
           </button>
         </div>
       </header>
@@ -906,476 +880,9 @@ export default function App() {
         </div>
       )}
 
-      <div className="problem-banner">
-        <div className="problem-banner-icon">
-          <i className="fas fa-server"></i>
-        </div>
-        <div className="problem-banner-text">
-          <span className="problem-label">💡 THE PROBLEM WE SOLVE</span>
-          <p>
-            Millions of cricket fans across rural India miss IPL commentary —
-            language barriers, no Star Sports subscriptions, low bandwidth.{" "}
-            <strong>
-              CricAI MERN delivers real-time Hinglish commentary via MongoDB
-              persistence, Express REST APIs, React 18 + Vite client, and
-              Node.js — zero audio assets, zero API keys for commentary.
-            </strong>
-          </p>
-        </div>
-        <div className="problem-banner-stats">
-          <div className="pb-stat">
-            <span>0 KB</span>
-            <small>Audio Files</small>
-          </div>
-          <div className="pb-stat">
-            <span>M</span>
-            <small>MongoDB</small>
-          </div>
-          <div className="pb-stat">
-            <span>E+R+N</span>
-            <small>Express React Node</small>
-          </div>
-          <div className="pb-stat">
-            <span>∞</span>
-            <small>Commentary Lines</small>
-          </div>
-        </div>
-      </div>
-
-      <main
-        className="arena-grid"
-        style={{ display: currentPage === "insights" ? "none" : undefined }}
-      >
-        <section
-          className="left-panel"
-          style={{ display: currentPage === "commentary" ? "none" : undefined }}
-        >
-          <div className="card scoreboard-card">
-            <div className="card-header">
-              <h2>
-                <i className="fas fa-chart-line"></i> LIVE ARENA SCOREBOARD
-              </h2>
-              <span className="match-stage" id="match-stage-indicator">
-                {scenarioLabel(scenario)}
-              </span>
-            </div>
-            <div className="scoreboard-grid">
-              <div className="score-display">
-                <span className="score-label">RUNS/WKTS</span>
-                <span className="digital-number" id="digital-score">
-                  {score}/{wickets}
-                </span>
-              </div>
-              <div className="overs-display">
-                <span className="score-label">OVERS</span>
-                <span className="digital-number" id="digital-overs">
-                  {overs.toFixed(1)}
-                </span>
-              </div>
-              <div className="target-display">
-                <span className="score-label">TARGET</span>
-                <span
-                  className="digital-number text-yellow"
-                  id="digital-target"
-                >
-                  {target}
-                </span>
-              </div>
-              <div className="need-display">
-                <span className="score-label">REQUIRED</span>
-                <span className="digital-msg text-pulse" id="digital-need">
-                  {score >= target
-                    ? "Batting team WON! 🏆"
-                    : wickets >= 10
-                      ? "All Out! 👑"
-                      : `${target - score} runs needed`}
-                </span>
-              </div>
-            </div>
-            <div className="progress-bar-container">
-              <div className="progress-bar-label">
-                <span id="win-probability-text">
-                  Win Probability: Batting {probs.batting.toFixed(0)}% | Bowling{" "}
-                  {probs.bowling.toFixed(0)}%
-                </span>
-              </div>
-              <div className="probability-track">
-                <div
-                  className="prob-team-a"
-                  style={{ width: `${probs.batting}%` }}
-                ></div>
-                <div
-                  className="prob-team-b"
-                  style={{ width: `${probs.bowling}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card setup-card">
-            <div className="card-header">
-              <h2>
-                <i className="fas fa-gamepad"></i> MATCH SETUP & MODE
-              </h2>
-              <div className="mode-toggles">
-                <button
-                  className={`mode-btn ${playMode === "free" ? "active" : ""}`}
-                  onClick={() => handleSwitchMode("free")}
-                >
-                  Free Play
-                </button>
-                <button
-                  className={`mode-btn ${playMode === "game" ? "active" : ""}`}
-                  onClick={() => handleSwitchMode("game")}
-                >
-                  Interactive Game
-                </button>
-                <button
-                  className={`mode-btn ${playMode === "live" ? "active" : ""}`}
-                  onClick={() => handleSwitchMode("live")}
-                >
-                  Live Match Feed
-                </button>
-              </div>
-            </div>
-            <div className="setup-form">
-              <div className="form-row">
-                <div className="input-group">
-                  <label>Striker</label>
-                  <select
-                    value={striker}
-                    onChange={(e) => {
-                      const style =
-                        e.target.options[e.target.selectedIndex].dataset.style;
-                      patchSetup({
-                        striker: e.target.value,
-                        strikerStyle: style,
-                      });
-                    }}
-                  >
-                    <option value="MS Dhoni" data-style="Aggressive hitter">
-                      MS Dhoni (The Finisher)
-                    </option>
-                    <option value="Virat Kohli" data-style="Anchor">
-                      Virat Kohli (Run Machine)
-                    </option>
-                    <option value="Hardik Pandya" data-style="Aggressive hitter">
-                      Hardik Pandya (Hitter)
-                    </option>
-                    <option value="Rinku Singh" data-style="Aggressive hitter">
-                      Rinku Singh (Clutch Finisher)
-                    </option>
-                    <option
-                      value="Yashasvi Jaiswal"
-                      data-style="New batsman"
-                    >
-                      Yashasvi Jaiswal (Young Gun)
-                    </option>
-                    <option value="Shubman Gill" data-style="Anchor">
-                      Shubman Gill (Prince of Timing)
-                    </option>
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Bowler</label>
-                  <select
-                    value={bowler}
-                    onChange={(e) => patchSetup({ bowler: e.target.value })}
-                  >
-                    <option value="Jasprit Bumrah">
-                      Jasprit Bumrah (Yorker Master)
-                    </option>
-                    <option value="Lasith Malinga">
-                      Lasith Malinga (Slingy Legend)
-                    </option>
-                    <option value="Rashid Khan">Rashid Khan (Spin Wizard)</option>
-                    <option value="Mitchell Starc">
-                      Mitchell Starc (Express Pace)
-                    </option>
-                    <option value="Yuzvendra Chahal">
-                      Yuzvendra Chahal (Chahal TV)
-                    </option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="input-group">
-                  <label>Championship Scenarios</label>
-                  <div className="scenario-chips">
-                    <button
-                      className={`chip ${scenario === "death" ? "active" : ""}`}
-                      onClick={() => handleLoadScenario("death")}
-                    >
-                      <i className="fas fa-skull"></i> 20th Over (19 runs needed)
-                    </button>
-                    <button
-                      className={`chip ${scenario === "powerplay" ? "active" : ""}`}
-                      onClick={() => handleLoadScenario("powerplay")}
-                    >
-                      <i className="fas fa-bolt"></i> Powerplay Attack (1.2
-                      overs)
-                    </button>
-                    <button
-                      className={`chip ${scenario === "middle" ? "active" : ""}`}
-                      onClick={() => handleLoadScenario("middle")}
-                    >
-                      <i className="fas fa-chess-knight"></i> Middle Overs
-                      Build-up
-                    </button>
-                    <button
-                      className={`chip ${scenario === "lastball" ? "active" : ""}`}
-                      onClick={() => handleLoadScenario("lastball")}
-                    >
-                      <i className="fas fa-film"></i> Last Ball Drama (6 runs
-                      needed)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card field-card">
-            <div className="card-header">
-              <h2>
-                <i className="fas fa-compass"></i> STADIUM LIVE FIELD
-              </h2>
-              <span
-                id="stadium-sub-status"
-                className="field-hint text-green"
-              >
-                Bowler is warming up at run-up...
-              </span>
-            </div>
-            <div className="stadium-field-outer">
-              <div className="cricket-field" id="cricket-field">
-                <div className="inner-circle-line"></div>
-                <div className="turf-pitch">
-                  <div className="crease bowler-crease"></div>
-                  <div className="crease batsman-crease"></div>
-                  <div className="wicket-stumps stumps-bowler"></div>
-                  <div className="wicket-stumps stumps-batsman"></div>
-                </div>
-                <div className="field-ball" id="field-ball"></div>
-                <div className="bat-hit-spark" id="bat-hit-spark"></div>
-                <div className="ball-trajectory" id="ball-trajectory"></div>
-
-                {showWagonWheel &&
-                  wagonWheel.map((shot, idx) => {
-                    const colorMap = {
-                      SIX: "var(--neon-yellow)",
-                      FOUR: "var(--neon-blue)",
-                      WICKET: "var(--neon-red)",
-                      RUNS: "var(--neon-green)",
-                      DOT: "#64748b",
-                    };
-                    const color = colorMap[shot.outcome] || "#cbd5e1";
-                    return (
-                      <div
-                        key={idx}
-                        className="wagon-wheel-line"
-                        style={{
-                          position: "absolute",
-                          left: "68%",
-                          top: "50%",
-                          width: `${shot.length}px`,
-                          height: "2px",
-                          background: `linear-gradient(90deg, transparent, ${color})`,
-                          boxShadow: `0 0 6px ${color}`,
-                          transform: `rotate(${shot.angle}deg)`,
-                          transformOrigin: "left center",
-                          opacity: 0.85,
-                          zIndex: 3,
-                        }}
-                      />
-                    );
-                  })}
-
-                <div className="fielder f-covers" data-name="Covers Fielder">
-                  🛡️
-                </div>
-                <div
-                  className="fielder f-midwicket"
-                  data-name="Deep Mid-Wicket"
-                >
-                  🛡️
-                </div>
-                <div className="fielder f-longon" data-name="Long On">
-                  🛡️
-                </div>
-
-                <div
-                  className="fielder-striker"
-                  id="visual-striker"
-                  title="Striker"
-                >
-                  🏏
-                </div>
-                <div
-                  className="fielder-bowler"
-                  id="visual-bowler"
-                  title="Bowler"
-                >
-                  ⚾
-                </div>
-              </div>
-            </div>
-
-            <div className="wagon-wheel-toggle-bar">
-              <button
-                className={`control-btn ${showWagonWheel ? "active" : ""}`}
-                onClick={() => setShowWagonWheel(!showWagonWheel)}
-              >
-                <i className="fas fa-bullseye"></i> Wagon Wheel Map:{" "}
-                {showWagonWheel ? "ON" : "OFF"}
-              </button>
-              <button
-                className="control-btn"
-                onClick={() => setWagonWheel([])}
-              >
-                <i className="fas fa-trash-alt"></i> Clear Wagon Wheel (
-                {wagonWheel.length} shots)
-              </button>
-            </div>
-
-            {playMode === "free" && (
-              <div className="mode-container" id="free-play-controls">
-                <div className="outcome-controls">
-                  <button
-                    className="outcome-btn btn-six"
-                    onClick={() => handleBowlBall("SIX")}
-                  >
-                    <span className="btn-icon">⚡</span>
-                    <span className="btn-text">6 Runs</span>
-                  </button>
-                  <button
-                    className="outcome-btn btn-four"
-                    onClick={() => handleBowlBall("FOUR")}
-                  >
-                    <span className="btn-icon">🔥</span>
-                    <span className="btn-text">4 Runs</span>
-                  </button>
-                  <button
-                    className="outcome-btn btn-wicket"
-                    onClick={() => handleBowlBall("WICKET")}
-                  >
-                    <span className="btn-icon">💀</span>
-                    <span className="btn-text">Wicket</span>
-                  </button>
-                  <button
-                    className="outcome-btn btn-dot"
-                    onClick={() => handleBowlBall("DOT")}
-                  >
-                    <span className="btn-icon">🎯</span>
-                    <span className="btn-text">Dot Ball</span>
-                  </button>
-                  <button
-                    className="outcome-btn btn-runs"
-                    onClick={() => handleBowlBall("RUNS")}
-                  >
-                    <span className="btn-icon">🏃</span>
-                    <span className="btn-text">1-3 Runs</span>
-                  </button>
-                  <button
-                    className="outcome-btn btn-extra"
-                    onClick={() => handleBowlBall("EXTRA")}
-                  >
-                    <span className="btn-icon">⚠️</span>
-                    <span className="btn-text">Wide / No Ball</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {playMode === "game" && (
-              <div className="mode-container" id="interactive-game-controls">
-                <div className="batting-instruction">
-                  <span>
-                    The bowler is running in! Select your batting response:
-                  </span>
-                </div>
-                <div className="game-actions-grid">
-                  <button
-                    className="game-btn btn-helicopter"
-                    onClick={() => handlePlayBattingShot("helicopter")}
-                  >
-                    <span className="game-btn-title">
-                      Helicopter Shot 🚁
-                    </span>
-                    <span className="game-btn-desc">
-                      High risk boundary shot
-                    </span>
-                  </button>
-                  <button
-                    className="game-btn btn-coverdrive"
-                    onClick={() => handlePlayBattingShot("coverdrive")}
-                  >
-                    <span className="game-btn-title">
-                      Stunning Cover Drive 🏏
-                    </span>
-                    <span className="game-btn-desc">
-                      Classy placement & timing
-                    </span>
-                  </button>
-                  <button
-                    className="game-btn btn-nudge"
-                    onClick={() => handlePlayBattingShot("nudge")}
-                  >
-                    <span className="game-btn-title">Nudge & Run 🏃‍♂️</span>
-                    <span className="game-btn-desc">Safe strike rotation</span>
-                  </button>
-                  <button
-                    className="game-btn btn-leave"
-                    onClick={() => handlePlayBattingShot("leave")}
-                  >
-                    <span className="game-btn-title">Leave Ball 👀</span>
-                    <span className="game-btn-desc">
-                      Safe dot, check wide/yorker
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {playMode === "live" && (
-              <div className="mode-container" id="live-match-controls">
-                <div className="live-match-setup">
-                  <div className="batting-instruction">
-                    <span>Real Match Live Broadcaster:</span>
-                  </div>
-                  <div className="live-select-row">
-                    <select
-                      value={selectedLiveMatch}
-                      onChange={handleSelectMatchChange}
-                    >
-                      <option value="demo">
-                        Demo Live Feed: RCB vs CSK (Simulated Live Match)
-                      </option>
-                      {liveMatches.map((m) => (
-                        <option key={m.guid} value={m.guid}>
-                          {m.title}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="control-btn"
-                      title="Refresh Live Scoreboard Feed"
-                      onClick={triggerFetchLiveMatches}
-                    >
-                      <i className="fas fa-sync-alt"></i>
-                    </button>
-                  </div>
-                  <div className="live-status-row">
-                    <span className="live-pulse-green"></span>
-                    <span className="status-msg">{liveConnectionStatus}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="right-panel">
+      <main className="arena-grid">
+        <section className="left-panel">
+          {/* 1. CRICAI COMMENTARY BOX */}
           <div className="card commentary-card">
             <div className="card-header">
               <div className="live-mic-title">
@@ -1400,13 +907,47 @@ export default function App() {
                 <div key={i} className="wave-bar"></div>
               ))}
             </div>
+
+            {/* Quick Simulate Ball Outcome buttons inside commentary card */}
+            <div style={{ marginTop: "20px", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "18px" }}>
+              <div className="batting-instruction" style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Simulate Ball Outcome:</span>
+                <span className="live-pulse-green"></span>
+              </div>
+              <div className="outcome-controls">
+                <button className="outcome-btn btn-six" onClick={() => handleBowlBall("SIX")}>
+                  <span className="btn-icon">⚡</span>
+                  <span className="btn-text">6 Runs</span>
+                </button>
+                <button className="outcome-btn btn-four" onClick={() => handleBowlBall("FOUR")}>
+                  <span className="btn-icon">🔥</span>
+                  <span className="btn-text">4 Runs</span>
+                </button>
+                <button className="outcome-btn btn-wicket" onClick={() => handleBowlBall("WICKET")}>
+                  <span className="btn-icon">💀</span>
+                  <span className="btn-text">Wicket</span>
+                </button>
+                <button className="outcome-btn btn-dot" onClick={() => handleBowlBall("DOT")}>
+                  <span className="btn-icon">🎯</span>
+                  <span className="btn-text">Dot Ball</span>
+                </button>
+                <button className="outcome-btn btn-runs" onClick={() => handleBowlBall("RUNS")}>
+                  <span className="btn-icon">🏃</span>
+                  <span className="btn-text">1-3 Runs</span>
+                </button>
+                <button className="outcome-btn btn-extra" onClick={() => handleBowlBall("EXTRA")}>
+                  <span className="btn-icon">⚠️</span>
+                  <span className="btn-text">Wide / No Ball</span>
+                </button>
+              </div>
+            </div>
           </div>
 
+          {/* 2. CRICAI AI COPILOT AGENT */}
           <div className="card custom-commentary-card">
             <div className="card-header">
               <h2>
-                <i className="fas fa-robot text-blue"></i> CRICAI AI COPILOT
-                AGENT
+                <i className="fas fa-robot text-blue"></i> CRICAI AI COPILOT AGENT
               </h2>
             </div>
             <div className="agent-chat-box">
@@ -1465,6 +1006,52 @@ export default function App() {
             </div>
           </div>
 
+          {/* 3. INNING OVER FEED (BALL-BY-BALL) */}
+          <div className="card feed-card">
+            <div className="card-header">
+              <h2>
+                <i className="fas fa-stream"></i> INNING OVER FEED (BALL-BY-BALL)
+              </h2>
+              <span className="feed-count">
+                {feedCount} Ball{feedCount !== 1 ? "s" : ""} Bowled
+              </span>
+            </div>
+            <div className="feed-list" style={{ maxHeight: "350px", overflowY: "auto" }}>
+              {feedHistory.length === 0 ? (
+                <div className="empty-feed-placeholder">
+                  <i className="fas fa-history"></i>
+                  <p>
+                    Awaiting game action. Start simulating or chatting to construct the
+                    live match inning history!
+                  </p>
+                </div>
+              ) : (
+                feedHistory.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`feed-item outcome-${item.outcome.toLowerCase()}`}
+                  >
+                    <div className="feed-item-header">
+                      <span className="feed-ball-no">Ball {item.ballNo}</span>
+                      <span
+                        className={`feed-badge badge-${item.outcome.toLowerCase()}`}
+                      >
+                        {item.outcome}
+                      </span>
+                    </div>
+                    <div className="feed-players">
+                      {item.batsman} <span>vs</span> {item.bowler}
+                    </div>
+                    <div className="feed-commentary-text">{item.text}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="right-panel">
+          {/* 4. CRICAI VOICE & STYLE */}
           <div className="card voice-panel-card">
             <div className="card-header">
               <h2>
@@ -1572,11 +1159,11 @@ export default function App() {
             </div>
           </div>
 
+          {/* 5. STADIUM SOUNDBOARD & CHEER */}
           <div className="card atmosphere-card">
             <div className="card-header">
               <h2>
-                <i className="fas fa-volume-up"></i> STADIUM SOUNDBOARD &
-                CHEER
+                <i className="fas fa-volume-up"></i> STADIUM SOUNDBOARD & CHEER
               </h2>
             </div>
             <div className="soundboard-grid">
@@ -1637,93 +1224,12 @@ export default function App() {
               </div>
             </div>
           </div>
-        </section>
-      </main>
 
-      {/* ── Global Live Scores — Real matches from cricketdata.org ── */}
-      <section
-        style={{
-          padding: "0 16px 24px",
-          display: currentPage === "insights" ? "none" : undefined,
-        }}
-      >
-        <div style={{
-          background: "rgba(255,255,255,0.03)",
-          borderRadius: "16px",
-          padding: "20px",
-          border: "1px solid rgba(255,255,255,0.07)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <h2 style={{ margin: 0, fontSize: "1rem", color: "#f9fafb", fontWeight: 700 }}>
-              <i className="fas fa-satellite-dish" style={{ color: "#ef4444", marginRight: "8px" }}></i>
-              Live Scores — Real Matches Worldwide
-            </h2>
-          </div>
-          <LiveScorePanel />
-        </div>
-      </section>
-
-      <section
-        className="feed-section"
-        style={{ display: currentPage === "insights" ? undefined : "none" }}
-      >
-        <div className="feed-grid">
+          {/* 6. MERN STACK DATABASE & REST API LEDGER */}
           <div className="card feed-card">
             <div className="card-header">
               <h2>
-                <i className="fas fa-stream"></i> INNING OVER FEED
-                (BALL-BY-BALL)
-              </h2>
-              <span className="feed-count">
-                {feedCount} Ball{feedCount !== 1 ? "s" : ""} Bowled
-              </span>
-              <button
-                id="reset-btn"
-                className="control-btn"
-                onClick={handleResetAll}
-                style={{ marginLeft: "auto" }}
-              >
-                <i className="fas fa-sync"></i> Reset scoreboard
-              </button>
-            </div>
-            <div className="feed-list">
-              {feedHistory.length === 0 ? (
-                <div className="empty-feed-placeholder">
-                  <i className="fas fa-history"></i>
-                  <p>
-                    Awaiting game action. Start playing above to construct the
-                    live match inning history!
-                  </p>
-                </div>
-              ) : (
-                feedHistory.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`feed-item outcome-${item.outcome.toLowerCase()}`}
-                  >
-                    <div className="feed-item-header">
-                      <span className="feed-ball-no">Ball {item.ballNo}</span>
-                      <span
-                        className={`feed-badge badge-${item.outcome.toLowerCase()}`}
-                      >
-                        {item.outcome}
-                      </span>
-                    </div>
-                    <div className="feed-players">
-                      {item.batsman} <span>vs</span> {item.bowler}
-                    </div>
-                    <div className="feed-commentary-text">{item.text}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="card feed-card">
-            <div className="card-header">
-              <h2>
-                <i className="fas fa-database text-green"></i> MERN STACK
-                DATABASE & REST API LEDGER
+                <i className="fas fa-database text-green"></i> MERN STACK REST API LEDGER
               </h2>
               <span
                 className="feed-count"
@@ -1735,7 +1241,7 @@ export default function App() {
                 {dbMode === "mongodb" ? "MongoDB Active" : "Memory Fallback"}
               </span>
             </div>
-            <div className="mern-terminal">
+            <div className="mern-terminal" style={{ maxHeight: "350px", overflowY: "auto" }}>
               {mernLogs.length === 0 ? (
                 <div className="empty-feed-placeholder">
                   <p>API ledger will populate as Express endpoints are called.</p>
@@ -1771,6 +1277,24 @@ export default function App() {
               )}
             </div>
           </div>
+        </section>
+      </main>
+
+      {/* ── Global Live Scores — Real matches from cricketdata.org ── */}
+      <section style={{ padding: "0 16px 24px" }}>
+        <div style={{
+          background: "rgba(255,255,255,0.03)",
+          borderRadius: "16px",
+          padding: "20px",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+            <h2 style={{ margin: 0, fontSize: "1rem", color: "#f9fafb", fontWeight: 700 }}>
+              <i className="fas fa-satellite-dish" style={{ color: "#ef4444", marginRight: "8px" }}></i>
+              Live Scores — Real Matches Worldwide
+            </h2>
+          </div>
+          <LiveScorePanel />
         </div>
       </section>
 

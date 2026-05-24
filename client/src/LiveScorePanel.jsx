@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { api } from "../api/client.js";
+import { api } from "./api/client.js";
 
 const OUTCOME_COLORS = {
   SIX:    { bg: "#7c3aed", text: "#fff"    },
