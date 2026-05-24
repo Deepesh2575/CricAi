@@ -165,8 +165,17 @@ export async function speakCommentary({
   });
 }
 
-export function stopCommentarySpeech() {
+export async function stopCommentarySpeech() {
+  // Stop any ongoing browser audio
   stopAllSpeech();
+
+  // Notify server to cancel any ongoing TTS job
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    await fetch(`${API_BASE}/api/tts/stop`, { method: "POST" });
+  } catch (err) {
+    console.warn("Failed to stop server-side TTS:", err.message);
+  }
 }
 
 export function preloadBrowserVoices() {

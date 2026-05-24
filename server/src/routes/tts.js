@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { listVoiceLanguages, synthesizeSpeech } from "../services/ttsService.js";
+import { listVoiceLanguages, synthesizeSpeech, stopCurrentSpeech } from "../services/ttsService.js";
+
 
 const router = Router();
 
@@ -50,4 +51,13 @@ router.post("/speak", async (req, res, next) => {
   }
 });
 
-export default router;
+router.post("/stop", async (req, res) => {
+  try {
+    stopCurrentSpeech();
+    res.json({ ok: true, message: "TTS stopped" });
+  } catch (err) {
+    console.error("Stop TTS error:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+

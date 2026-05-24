@@ -59,6 +59,15 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
 
     console.log(`TTS: Synthesizing for ${languageId} (${config.voice}), length: ${cleaned.length}`);
 
+    // Ensure any previous job is cancelled before starting a new one
+    if (global.currentTtsJob && typeof global.currentTtsJob.cancel === "function") {
+      try {
+        global.currentTtsJob.cancel();
+      } catch (e) {
+        console.warn("Failed to cancel previous TTS job", e.message);
+      }
+    }
+
     const tts = new EdgeTTS({
       voice: config.voice,
       lang: config.lang,
@@ -66,6 +75,9 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
       pitch: mods.pitch,
       timeout: 20000,
     });
+
+    // Store job reference for possible later cancellation
+    global.currentTtsJob = tts;
 
     await tts.ttsPromise(cleaned.slice(0, 900), tmpFile);
     const buffer = await fs.readFile(tmpFile);
@@ -77,16 +89,30 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
     console.error(`TTS Error for language ${languageId}:`, err.message);
     throw new Error(`Text-to-speech synthesis failed: ${err.message}`);
   } finally {
-    const tmpFile = path.join(os.tmpdir(), `cricai-tts-*.mp3`);
+    // Clear global reference after completion
+    if (global.currentTtsJob === tts) {
+      global.currentTtsJob = null;
+    }
+    const tmpFileGlob = path.join(os.tmpdir(), `cricai-tts-*.mp3`);
     try {
-      // Clean up temp files (basic cleanup)
+      // Basic cleanup of temp files, keep recent ones
       const files = await fs.readdir(os.tmpdir());
       const ttsFiles = files.filter(f => f.startsWith('cricai-tts-') && f.endsWith('.mp3'));
-      for (const file of ttsFiles.slice(-10)) { // Keep last 10
+      for (const file of ttsFiles.slice(-10)) {
         await fs.unlink(path.join(os.tmpdir(), file)).catch(() => {});
       }
     } catch (err) {
-      // Ignore cleanup errors
+      // ignore
+    }
+  }
+}
+
+export function stopCurrentSpeech() {
+  if (global.currentTtsJob && typeof global.currentTtsJob.cancel === "function") {
+    try {
+      global.currentTtsJob.cancel();
+    } catch (e) {
+      console.warn("Failed to cancel TTS job via stopCurrentSpeech", e.message);
     }
   }
 }
