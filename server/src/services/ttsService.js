@@ -39,6 +39,10 @@ export async function translateText(text, targetLangCode) {
 }
 
 export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
+  // Declare outside try so finally block can access them
+  let tts = null;
+  let tmpFile = null;
+
   try {
     const config = VOICE_LANGUAGES[languageId] || VOICE_LANGUAGES.hinglish;
     
@@ -55,7 +59,7 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
     }
 
     const mods = getOutcomeSpeechModifiers(outcome);
-    const tmpFile = path.join(os.tmpdir(), `cricai-tts-${randomUUID()}.mp3`);
+    tmpFile = path.join(os.tmpdir(), `cricai-tts-${randomUUID()}.mp3`);
 
     console.log(`TTS: Synthesizing for ${languageId} (${config.voice}), length: ${cleaned.length}`);
 
@@ -68,7 +72,7 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
       }
     }
 
-    const tts = new EdgeTTS({
+    tts = new EdgeTTS({
       voice: config.voice,
       lang: config.lang,
       rate: mods.rate,
@@ -90,19 +94,12 @@ export async function synthesizeSpeech(text, languageId = "hinglish", outcome) {
     throw new Error(`Text-to-speech synthesis failed: ${err.message}`);
   } finally {
     // Clear global reference after completion
-    if (global.currentTtsJob === tts) {
+    if (tts && global.currentTtsJob === tts) {
       global.currentTtsJob = null;
     }
-    const tmpFileGlob = path.join(os.tmpdir(), `cricai-tts-*.mp3`);
-    try {
-      // Basic cleanup of temp files, keep recent ones
-      const files = await fs.readdir(os.tmpdir());
-      const ttsFiles = files.filter(f => f.startsWith('cricai-tts-') && f.endsWith('.mp3'));
-      for (const file of ttsFiles.slice(-10)) {
-        await fs.unlink(path.join(os.tmpdir(), file)).catch(() => {});
-      }
-    } catch (err) {
-      // ignore
+    // Clean up only the temp file we created
+    if (tmpFile) {
+      fs.unlink(tmpFile).catch(() => {});
     }
   }
 }
