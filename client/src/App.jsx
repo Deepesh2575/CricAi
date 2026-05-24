@@ -128,6 +128,7 @@ export default function App() {
   const lastRuns = useRef(null);
   const lastWickets = useRef(null);
   const lastOvers = useRef(null);
+  const currentPolledMatchGuid = useRef(null);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -559,6 +560,7 @@ export default function App() {
       clearInterval(livePollTimer.current);
       livePollTimer.current = null;
     }
+    currentPolledMatchGuid.current = null;
   };
 
   const executeLivePolledBall = async (outcome, curRuns, curWickets, curOvers, desc, activeGuid) => {
@@ -683,7 +685,15 @@ export default function App() {
   };
 
   const startLiveMatchPolling = (overrideMatchId) => {
+    const matchGuid = overrideMatchId !== undefined ? overrideMatchId : selectedLiveMatch;
+    
+    // Skip if we are already polling this match to prevent double-polling audio cuts!
+    if (livePollTimer.current && currentPolledMatchGuid.current === matchGuid) {
+      return;
+    }
+
     stopLiveMatchPolling();
+    currentPolledMatchGuid.current = matchGuid;
     lastScoreString.current = "";
     lastRuns.current = null;
     lastWickets.current = null;
@@ -723,16 +733,24 @@ export default function App() {
         setLiveConnectionStatus(
           "No active matches. Running Simulated Live Broadcaster!"
         );
+        setSelectedLiveMatch("demo");
+        startLiveMatchPolling("demo");
       } else {
         setLiveConnectionStatus(
           `Connected. Loaded ${list.length} live matches.`
         );
+        // Automatically select and track the first real live match!
+        const firstMatch = list[0];
+        setSelectedLiveMatch(firstMatch.guid);
+        startLiveMatchPolling(firstMatch.guid);
       }
     } catch (e) {
       console.warn(e);
       setLiveConnectionStatus(
         "Server busy. Simulated Live Broadcaster active!"
       );
+      setSelectedLiveMatch("demo");
+      startLiveMatchPolling("demo");
     }
   };
 
@@ -766,7 +784,7 @@ export default function App() {
 
   const handleSelectMatchChange = (e) => {
     setSelectedLiveMatch(e.target.value);
-    setTimeout(() => startLiveMatchPolling(), 100);
+    startLiveMatchPolling(e.target.value);
   };
 
   const patchSetup = async (body) => {
@@ -814,9 +832,8 @@ export default function App() {
         } catch {
           demoTimelineRef.current = [];
         }
-        // Fetch matches and start live polling automatically
+        // Fetch active live matches and automatically start polling the first active match!
         triggerFetchLiveMatches();
-        startLiveMatchPolling();
       } catch (err) {
         setApiError(err.message);
         triggerToast(`MERN API error: ${err.message}`);

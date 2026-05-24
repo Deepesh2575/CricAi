@@ -22,21 +22,65 @@ export function parseESPNLiveTitle(title) {
 }
 
 export async function fetchLiveMatches() {
-  const url = "https://www.espncricinfo.com/rss/livescores.xml";
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to fetch live scores");
+  try {
+    const url = "https://www.espncricinfo.com/live-cricket-score";
+    console.log(`[Cricinfo List] Fetching real-time live scores from: ${url}`);
+    
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
 
-  const xmlText = await response.text();
-  const items = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
+    const html = await response.text();
+    const scriptMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+    if (!scriptMatch) {
+      console.warn("[Cricinfo List] Could not find __NEXT_DATA__ script block in live scores page");
+      return [];
+    }
 
-  return items.map((itemMatch, index) => {
-    const block = itemMatch[1];
-    const title =
-      block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/i)?.[1] ||
-      block.match(/<title>(.*?)<\/title>/i)?.[1] ||
-      "Live Match";
-    const guid =
-      block.match(/<guid>(.*?)<\/guid>/i)?.[1]?.trim() || `match-${index}`;
-    return { title, guid };
-  });
+    const data = JSON.parse(scriptMatch[1].trim());
+    const matchesList = data?.props?.appPageProps?.data?.content?.matches || 
+                        data?.props?.editionDetails?.trendingMatches?.matches || [];
+                        
+    console.log(`[Cricinfo List] Successfully loaded ${matchesList.length} active live matches.`);
+
+    return matchesList.map((m) => {
+      const team1 = m.teams?.[0]?.team?.name || "Team A";
+      const team2 = m.teams?.[1]?.team?.name || "Team B";
+      const status = m.statusText || "";
+      const scoreText = m.teams?.[0]?.score || m.teams?.[1]?.score || "";
+      
+      const title = `${team1} vs ${team2} ${scoreText ? `(${scoreText})` : ""} — ${status}`;
+      const guid = `http://www.cricinfo.com/ci/engine/match/${m.objectId}.html`;
+      
+      return { title, guid };
+    });
+  } catch (err) {
+    console.error("[Cricinfo List] Error loading matches page:", err.message);
+    
+    // Fall back to RSS feed if live score page scraper fails
+    try {
+      console.log("[Cricinfo List] Falling back to RSS livescores feed...");
+      const rssUrl = "https://www.espncricinfo.com/rss/livescores.xml";
+      const res = await fetch(rssUrl);
+      if (!res.ok) throw new Error("Failed to fetch RSS feed");
+      const xmlText = await res.text();
+      const items = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
+      return items.map((itemMatch, index) => {
+        const block = itemMatch[1];
+        const title =
+          block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/i)?.[1] ||
+          block.match(/<title>(.*?)<\/title>/i)?.[1] ||
+          "Live Match";
+        const guid =
+          block.match(/<guid>(.*?)<\/guid>/i)?.[1]?.trim() || `match-${index}`;
+        return { title, guid };
+      });
+    } catch (err2) {
+      console.error("[Cricinfo List] RSS fallback failed:", err2.message);
+      return [];
+    }
+  }
 }
