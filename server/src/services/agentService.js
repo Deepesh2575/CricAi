@@ -26,6 +26,7 @@ import {
 } from "./agentMemory.js";
 import { parseAgentIntent } from "./nlpAgent.js"; // legacy fallback
 import { applyBall } from "./matchLogic.js"; // used in legacy fallback
+import { VOICE_LANGUAGES } from "./voiceLanguages.js";
 
 // ─── Gemini client (lazy-init so missing key doesn't crash import) ─────────────
 let genAI = null;
@@ -193,4 +194,141 @@ function legacyFallback(userText, match) {
   }
 
   return { reply, actions, sfx, match };
+}
+
+/**
+ * Fetch the actual real-world commentary directly from the Cricinfo Next.js data block.
+ */
+export async function fetchRealCricinfoCommentary(matchGuid) {
+  if (!matchGuid || typeof matchGuid !== "string") return null;
+  try {
+    // Extract matchId. URL format: http://www.cricinfo.com/ci/engine/match/1529312.html -> 1529312
+    const match = matchGuid.match(/match\/(\d+)/);
+    if (!match) return null;
+    const matchId = match[1];
+
+    const url = `http://www.cricinfo.com/ci/engine/match/${matchId}.html`;
+    console.log(`[Cricinfo Fetch] Fetching live HTML from: ${url}`);
+    
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+    if (!res.ok) {
+      console.warn(`[Cricinfo Fetch] Failed to fetch HTML: ${res.status}`);
+      return null;
+    }
+
+    const html = await res.text();
+    const scriptMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+    if (!scriptMatch) {
+      console.warn("[Cricinfo Fetch] Could not find __NEXT_DATA__ script block");
+      return null;
+    }
+
+    const data = JSON.parse(scriptMatch[1].trim());
+    const ballComments = data?.props?.appPageProps?.data?.data?.content?.recentBallCommentary?.ballComments;
+    
+    if (ballComments && ballComments.length > 0) {
+      const latest = ballComments[0];
+      const title = latest.title || "";
+      const textItems = latest.commentTextItems || [];
+      const htmlText = textItems.map(item => item.html || item.text || "").join(" ");
+      
+      // Clean HTML tags from commentary text
+      const cleanText = htmlText.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      
+      if (cleanText) {
+        console.log(`[Cricinfo Fetch] Successfully fetched live ball commentary: "${cleanText}"`);
+        return {
+          title,
+          commentary: cleanText,
+          runs: latest.totalRuns || latest.batsmanRuns || 0,
+          isWicket: !!latest.isWicket,
+          isSix: !!latest.isSix,
+          isFour: !!latest.isFour,
+          oversActual: latest.oversActual,
+          totalInningRuns: latest.totalInningRuns || 0,
+          totalInningWickets: latest.totalInningWickets || 0,
+        };
+      }
+    }
+    
+    console.warn("[Cricinfo Fetch] No recent ball comments found in state");
+    return null;
+  } catch (err) {
+    console.error("[Cricinfo Fetch] Error fetching live commentary:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Generate real-world live match commentary from Google search grounding and translate it.
+ */
+export async function generateLiveMatchCommentary({ desc, score, wickets, overs, commentaryStyle, languageId, matchGuid }) {
+  // 1. Fetch real commentary from Cricinfo page
+  const realComm = await fetchRealCricinfoCommentary(matchGuid);
+  
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    // If no key, return real cricinfo commentary directly!
+    if (realComm) {
+      return `${realComm.title}: ${realComm.commentary}`;
+    }
+    return null;
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      tools: [{ googleSearch: {} }],
+    });
+
+    const langLabel = VOICE_LANGUAGES[languageId]?.label || "Hinglish (Hindi + English mix)";
+
+    let prompt = "";
+    if (realComm) {
+      prompt = `The user is watching a live cricket match.
+Actual delivery action: "${realComm.title}"
+Real-world ball-by-ball description: "${realComm.commentary}"
+Runs scored on this ball: ${realComm.runs} (Six: ${realComm.isSix}, Four: ${realComm.isFour}, Wicket: ${realComm.isWicket})
+Current Score: ${score}/${wickets} in ${overs} overs.
+Chosen Language: ${langLabel}
+Commentary Style/Tone: ${commentaryStyle} (e.g. filmy / sarcastic / aggressive)
+
+Instructions:
+1. Adapt and translate this ACTUAL real-world ball action ("${realComm.commentary}") into the chosen language "${langLabel}" with the chosen commentary style "${commentaryStyle}".
+2. Make it extremely exciting, high-energy, and natural (as if spoken by an energetic live commentator at the stadium!).
+3. Describe the actual players and action (e.g., if it says "${realComm.title}", mention these players!).
+4. Return ONLY the translated, high-energy commentary text (2-3 lines max). Do not include system labels, markdown formatting, markdown bold (* or **), or JSON wrappers. Just the commentary itself.`;
+    } else {
+      prompt = `The user is watching a live cricket match.
+Context: "${desc}"
+Current Score: ${score}/${wickets} in ${overs} overs.
+Chosen Language: ${langLabel}
+Commentary Style/Tone: ${commentaryStyle} (e.g. filmy / sarcastic / aggressive)
+
+Instructions:
+1. Use your Google Search tool to search for the latest live ball-by-ball commentary or live match details for this specific match (e.g., search for "${desc} live score cricinfo").
+2. Find the absolute latest delivery/ball-by-ball action (who bowled, who batted, what was the shot, runs scored, or wicket).
+3. Translate this real-world latest ball action into the chosen language "${langLabel}" with the chosen commentary style "${commentaryStyle}".
+4. Make it extremely exciting, high-energy, and natural (as if spoken by an energetic live commentator at the stadium!).
+5. Do NOT make up fake events—you MUST describe the actual latest event from your live search results!
+6. Return ONLY the translated, high-energy commentary text (2-3 lines max). Do not include system labels, markdown formatting, markdown bold (* or **), or JSON wrappers. Just the commentary itself.`;
+    }
+
+    const response = await model.generateContent(prompt);
+    return response.response.text().trim();
+  } catch (err) {
+    console.error("Error generating live match search commentary:", err.message);
+    
+    // If Gemini fails (e.g. 429 Quota Exceeded), fall back to the actual real-world cricinfo commentary!
+    if (realComm) {
+      console.log("[Cricinfo Fallback] Gemini failed/quota exceeded, falling back to raw real-world commentary.");
+      return `${realComm.title}: ${realComm.commentary}`;
+    }
+    return null;
+  }
 }

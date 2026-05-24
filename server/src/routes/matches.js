@@ -13,6 +13,7 @@ import {
   getWinProbabilities,
 } from "../services/matchLogic.js";
 import { getScenarioDefaults } from "../services/scenarioDefaults.js";
+import { generateLiveMatchCommentary } from "../services/agentService.js";
 
 const router = Router();
 
@@ -155,28 +156,42 @@ router.post("/:id/live-ball", async (req, res, next) => {
       return res.status(404).json({ ok: false, error: "Match not found" });
     }
 
-    const { outcome, score, wickets, overs, desc } = req.body;
+    const { outcome, score, wickets, overs, desc, languageId } = req.body;
     match.score = score;
     match.wickets = wickets;
     match.overs = overs;
     match.ballsInOver = Math.round((overs % 1) * 10);
 
-    const baseCom = compileHinglishCommentary(
-      outcome,
-      match.commentaryStyle,
-      match.scenario,
-      match.striker,
-      match.strikerStyle,
-      match.bowler
-    );
-    const commentary = `Stadium Broadcast update! ${desc}. CricAI live says - ${baseCom}`;
+    // Attempt to generate real-world commentary using Gemini Google Search grounding
+    let baseCom = await generateLiveMatchCommentary({
+      desc,
+      score,
+      wickets,
+      overs,
+      commentaryStyle: match.commentaryStyle,
+      languageId: languageId || "hinglish",
+    });
+
+    // Fall back to template-based Hinglish commentary if search commentary returns null
+    if (!baseCom) {
+      baseCom = compileHinglishCommentary(
+        outcome,
+        match.commentaryStyle,
+        match.scenario,
+        match.striker,
+        match.strikerStyle,
+        match.bowler
+      );
+    }
+
+    const commentary = baseCom;
     match.latestCommentary = commentary;
 
     const ballNo = `${Math.floor(match.overs)}.${match.ballsInOver}`;
     match.feedHistory = [
       {
         outcome,
-        text: commentary,
+        text: `${desc}. ${baseCom}`,
         ballNo,
         batsman: match.striker,
         bowler: match.bowler,

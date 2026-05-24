@@ -561,7 +561,7 @@ export default function App() {
     }
   };
 
-  const executeLivePolledBall = async (outcome, curRuns, curWickets, curOvers, desc) => {
+  const executeLivePolledBall = async (outcome, curRuns, curWickets, curOvers, desc, activeGuid) => {
     if (!matchId) return;
     try {
       const res = await api.liveBall(matchId, {
@@ -570,11 +570,13 @@ export default function App() {
         wickets: curWickets,
         overs: curOvers,
         desc,
+        languageId: voiceLanguage,
+        matchGuid: activeGuid,
       });
       logMernRequest(
         "POST",
         `/api/matches/${matchId}/live-ball`,
-        { outcome, score: curRuns, wickets: curWickets, overs: curOvers, desc },
+        { outcome, score: curRuns, wickets: curWickets, overs: curOvers, desc, languageId: voiceLanguage, matchGuid: activeGuid },
         res
       );
 
@@ -605,7 +607,8 @@ export default function App() {
         curr.score,
         curr.wickets,
         curr.overs,
-        `Simulated Live Feed: ${curr.desc}`
+        `Simulated Live Feed: ${curr.desc}`,
+        "demo"
       );
       return;
     }
@@ -646,7 +649,7 @@ export default function App() {
         
         // Exciting live commentary intro welcome statement
         const welcomeDesc = `CricAI tuned in live to ${parsed.team}! Currently at ${parsed.runs} runs for ${parsed.wickets} wickets in ${parsed.overs} overs. Broadcast microphone is active!`;
-        executeLivePolledBall("DOT", parsed.runs, parsed.wickets, parsed.overs, welcomeDesc);
+        executeLivePolledBall("DOT", parsed.runs, parsed.wickets, parsed.overs, welcomeDesc, matchGuid);
         return;
       }
 
@@ -671,7 +674,8 @@ export default function App() {
         parsed.runs,
         parsed.wickets,
         parsed.overs,
-        `Real match update for ${parsed.team}`
+        `Real match update for ${parsed.team}`,
+        matchGuid
       );
     } catch (e) {
       console.error("Live match poll error:", e);
