@@ -266,9 +266,9 @@ export async function fetchRealCricinfoCommentary(matchGuid) {
 /**
  * Generate real-world live match commentary from Google search grounding and translate it.
  */
-export async function generateLiveMatchCommentary({ desc, score, wickets, overs, commentaryStyle, languageId, matchGuid }) {
-  // 1. Fetch real commentary from Cricinfo page
-  const realComm = await fetchRealCricinfoCommentary(matchGuid);
+export async function generateLiveMatchCommentary({ desc, score, wickets, overs, commentaryStyle, languageId, matchGuid, preFetchedRealComm }) {
+  // 1. Fetch real commentary from Cricinfo page (use pre-fetched if available to avoid double fetching)
+  const realComm = preFetchedRealComm || await fetchRealCricinfoCommentary(matchGuid);
   
   const key = process.env.GEMINI_API_KEY;
   if (!key) {

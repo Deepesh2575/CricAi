@@ -13,7 +13,7 @@ import {
   getWinProbabilities,
 } from "../services/matchLogic.js";
 import { getScenarioDefaults } from "../services/scenarioDefaults.js";
-import { generateLiveMatchCommentary } from "../services/agentService.js";
+import { generateLiveMatchCommentary, fetchRealCricinfoCommentary } from "../services/agentService.js";
 
 const router = Router();
 
@@ -156,26 +156,48 @@ router.post("/:id/live-ball", async (req, res, next) => {
       return res.status(404).json({ ok: false, error: "Match not found" });
     }
 
-    const { outcome, score, wickets, overs, desc, languageId } = req.body;
-    match.score = score;
-    match.wickets = wickets;
-    match.overs = overs;
-    match.ballsInOver = Math.round((overs % 1) * 10);
+    const { outcome, score, wickets, overs, desc, languageId, matchGuid } = req.body;
+
+    let finalOutcome = outcome;
+    let finalScore = score;
+    let finalWickets = wickets;
+    let finalOvers = overs;
+
+    // Fetch actual real-world cricinfo details to keep scoreboard and commentary in 100% lock-step sync!
+    const realComm = matchGuid ? await fetchRealCricinfoCommentary(matchGuid) : null;
+    if (realComm) {
+      finalScore = realComm.totalInningRuns || score;
+      finalWickets = realComm.totalInningWickets || wickets;
+      finalOvers = realComm.oversActual || overs;
+      
+      if (realComm.isWicket) finalOutcome = "WICKET";
+      else if (realComm.isSix) finalOutcome = "SIX";
+      else if (realComm.isFour) finalOutcome = "FOUR";
+      else if (realComm.runs > 0) finalOutcome = "RUNS";
+      else finalOutcome = "DOT";
+    }
+
+    match.score = finalScore;
+    match.wickets = finalWickets;
+    match.overs = finalOvers;
+    match.ballsInOver = Math.round((finalOvers % 1) * 10);
 
     // Attempt to generate real-world commentary using Gemini Google Search grounding
     let baseCom = await generateLiveMatchCommentary({
       desc,
-      score,
-      wickets,
-      overs,
+      score: finalScore,
+      wickets: finalWickets,
+      overs: finalOvers,
       commentaryStyle: match.commentaryStyle,
       languageId: languageId || "hinglish",
+      matchGuid,
+      preFetchedRealComm: realComm, // Avoid double-fetching
     });
 
     // Fall back to template-based Hinglish commentary if search commentary returns null
     if (!baseCom) {
       baseCom = compileHinglishCommentary(
-        outcome,
+        finalOutcome,
         match.commentaryStyle,
         match.scenario,
         match.striker,
@@ -190,7 +212,7 @@ router.post("/:id/live-ball", async (req, res, next) => {
     const ballNo = `${Math.floor(match.overs)}.${match.ballsInOver}`;
     match.feedHistory = [
       {
-        outcome,
+        outcome: finalOutcome,
         text: `${desc}. ${baseCom}`,
         ballNo,
         batsman: match.striker,
