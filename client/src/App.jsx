@@ -7,6 +7,7 @@ import {
   preloadBrowserVoices,
 } from "./utils/commentarySpeaker.js";
 import { VOICE_LANGUAGE_OPTIONS } from "./utils/voiceLanguages.js";
+import LiveScorePanel from "./LiveScorePanel.jsx";
 import "./App.css";
 
 function computeWinProbabilities(m) {
@@ -1638,6 +1639,29 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {/* ── Global Live Scores — Real matches from cricketdata.org ── */}
+      <section
+        style={{
+          padding: "0 16px 24px",
+          display: currentPage === "insights" ? "none" : undefined,
+        }}
+      >
+        <div style={{
+          background: "rgba(255,255,255,0.03)",
+          borderRadius: "16px",
+          padding: "20px",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+            <h2 style={{ margin: 0, fontSize: "1rem", color: "#f9fafb", fontWeight: 700 }}>
+              <i className="fas fa-satellite-dish" style={{ color: "#ef4444", marginRight: "8px" }}></i>
+              Live Scores — Real Matches Worldwide
+            </h2>
+          </div>
+          <LiveScorePanel />
+        </div>
+      </section>
 
       <section
         className="feed-section"

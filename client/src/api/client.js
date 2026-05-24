@@ -48,6 +48,11 @@ export const api = {
     }),
   liveMatches: () => request("/api/live/matches"),
   demoTimeline: () => request("/api/live/demo-timeline"),
+  /** Opens a real-time SSE connection for live ball-by-ball updates */
+  connectLiveStream: () => {
+    const base = import.meta.env.VITE_API_URL || "";
+    return new EventSource(`${base}/api/live/stream`);
+  },
   ttsLanguages: () => request("/api/tts/languages"),
   ttsSpeak: async (text, languageId, outcome) => {
     const API_BASE = import.meta.env.VITE_API_URL || "";
